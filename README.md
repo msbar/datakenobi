@@ -1,6 +1,6 @@
 # Datakenobi
 
-Datakenobi é um fremawork para facilirtar o trablaho de ETL com python.
+Datakenobi é um fremawork para facilitar o trabalho de ETL com Python.
 
 **Documentação:** <a href="https://msbar.github.io/datakenobi" target="_blank">https://msbar.github.io/datakenobi</a>
 
