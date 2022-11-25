@@ -1,0 +1,16 @@
+from pathlib import Path
+
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent
+
+INSTALLED_APPS = []
+
+DATABASES = {
+    "default": {
+        "URL": config("default_URL", default="sqlite:///" + BASE_DIR / "db.sqlite3")
+    }
+}
+
+CRYPTON_TOKEN_PATH = BASE_DIR / "token.crypton"
+DATA_FILES_ROOT = BASE_DIR / "datafiles"

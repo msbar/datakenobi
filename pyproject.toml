@@ -8,8 +8,9 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pandas = "^1.5.1"
-SQLAlchemy = "^1.4.42"
 crypton-tool = "^1.0.0"
+SQLAlchemy = "^1.4.44"
+python-decouple = "^3.6"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -20,6 +21,7 @@ isort = "^5.10.1"
 pre-commit = "^2.20.0"
 pep8-naming = "^0.13.2"
 pip-audit = "^2.4.4"
+ipython = "^8.6.0"
 
 
 [tool.poetry.group.test.dependencies]

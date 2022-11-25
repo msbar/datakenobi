@@ -173,3 +173,5 @@ token.crypton
 
 # Datakenobi
 docs/site
+test.db
+settings.py

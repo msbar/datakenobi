@@ -6,7 +6,6 @@ install:
 format:
 	black .
 	isort .
-	pyupgrade --py310-plus **/*.py
 
 lint:
 	@black . --check --diff --color .
