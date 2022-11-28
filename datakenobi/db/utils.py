@@ -1,220 +1,149 @@
-from crypton_tool.crypton import Crypton
-from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
-from sqlalchemy.orm import sessionmaker
+import logging
+from pathlib import Path
 
-from settings import CRYPTON_TOKEN_PATH, DATABASES
-
-
-class Connector:
-    def __init__(
-        self,
-        drivername=None,
-        host=None,
-        database=None,
-        username=None,
-        password=None,
-        query=None,
-        url=None,
-        *args,
-        **kwargs,
-    ):
-        self._drivername = drivername
-        self._host = host
-        self._database = database
-        self._username = username
-        self._password = password
-        self._query = query
-        self._url = url
-        self._engine = None
-        self._connection = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def create_engine(self):
-        pass
-
-    @property
-    def engine(self):
-        return self._engine
-
-    def create_conn(self):
-        pass
-
-    @property
-    def connection(self):
-        return self._connection
-
-    def close(self):
-        pass
+from sqlalchemy import inspect, text
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 
-class SqlAlchemyConnector(Connector):
-    def __repr__(self):
-        return f"{__class__}(host={self._host}, database={self._database})"
-
-    def __str__(self):
-        return f"{__class__}(host={self._host}, database={self._database})"
-
-    def create_engine(self):
-        if not self._url:
-            self._url = URL.create(
-                drivername=self._drivername,
-                host=self._host,
-                database=self._database,
-                username=self._username,
-                password=self._password,
-                query=self._query,
-            )
-        self._engine = create_engine(self._url)
-        return self._engine
-
-    def create_conn(self):
-        self._connection = self._engine.connect()
-        return self._connection
-
-    @property
-    def session(self):
-        return sessionmaker(self._engine)
-
-    def close(self):
-        self._connection.close()
-        self._engine.dispose()
+def get_sql_file(file_path: Path):
+    return Path(file_path).read_text()
 
 
-class ConnectionData:
+class CreateModelTable:
     def __init__(self) -> None:
-        self._drivername = None
-        self._host = None
-        self._database = None
-        self._username = None
-        self._password = None
-        self._query = None
-        self._url = None
+        self._log = logging.getLogger(f"{__class__}")
 
-    @property
-    def drivername(self):
-        return self._drivername
+    def create_all(self, engine):
+        from sqlalchemy.ext.declarative import declarative_base
 
-    @drivername.setter
-    def drivername(self, drivername):
-        self._drivername = drivername
+        try:
+            Base = declarative_base()
+            Base.metadata.create_all(engine)
+        except Exception as e:
+            self._log.exception(e)
+            raise e
+        else:
+            self._log.info("Tabelas criadas.")
+            return True
 
-    @property
-    def host(self):
-        return self._host
-
-    @host.setter
-    def host(self, host):
-        self._host = host
-
-    @property
-    def database(self):
-        return self._database
-
-    @database.setter
-    def database(self, database):
-        self._database = database
-
-    @property
-    def username(self):
-        return self._username
-
-    @username.setter
-    def username(self, username):
-        self._username = username
-
-    @property
-    def password(self):
-        return self._password
-
-    @password.setter
-    def password(self, password):
-        self._password = password
-
-    @property
-    def query(self):
-        return self._query
-
-    @query.setter
-    def query(self, query):
-        self._query = query
-
-    @property
-    def url(self):
-        return self._url
-
-    @url.setter
-    def url(self, url):
-        self._url = url
-
-    @property
-    def get_data(self):
-        return {
-            "drivername": self._drivername,
-            "host": self._host,
-            "database": self._database,
-            "username": self._username,
-            "password": self._password,
-            "query": self._query,
-            "url": self._url,
-        }
+    def create_table_from_model(self, engine, model):
+        try:
+            model.metadata.create_all(engine)
+        except Exception as e:
+            self._log.exception(e)
+            raise e
+        else:
+            self._log.info("Tabela criada.")
+            return True
 
 
-class ConnectionBuilder:
-    def __init__(self, connector, connection_data) -> None:
-        self._connector = connector
-        self._connection_data = connection_data
-        self.__connector_instance = None
+class CreateModelTempTable:
+    def __init__(self, engine) -> None:
+        self._engine = engine
+        self._log = logging.getLogger(f"{__class__}")
 
-    @property
-    def connector(self):
-        return self._connector
+    def create_table_temp(self, model):
+        try:
+            table_name = model.__tablename__
+            table_name_temp = f"{model.__tablename__}_temp"
+            create_stmt1 = CreateTable(model.__table__).compile(self._engine).__str__()
+            create_stmt1 = create_stmt1.replace(table_name, table_name_temp)
+            create_stmt1 = text(create_stmt1)
 
-    @property
-    def connection_data(self):
-        return self._connection_data
+            stm_index_list = []
+            if model.__table__.indexes:
+                for index in model.__table__.indexes:
+                    stm = CreateIndex(index).compile(self._engine).__str__()
+                    stm_index_list.append(stm)
 
-    @property
-    def connector_instance(self):
-        return self.__connector_instance
+                create_stmt2 = ";".join(stm_index_list)
+                create_stmt2 = create_stmt2.replace(table_name, table_name_temp)
+                create_stmt2 = text(create_stmt2)
 
-    def build(self):
-        self.__connector_instance = self._connector(**self._connection_data.get_data)
-        return self.__connector_instance
+            self._engine.execute(create_stmt1)
+            if model.__table__.indexes:
+                self._engine.execute(create_stmt2)
+        except Exception as e:
+            self._log.exception(e)
+            raise e
+        else:
+            self._log.info("Tabela temporária criada.")
+            return True
 
 
-class ReadConnectionDataConf:
-    def __init__(self, alias) -> None:
-        self._alias = alias
-        self._connection_data = ConnectionData()
-        self._conf_database = DATABASES.get(alias)
+class RenameTable:
+    def __init__(self, engine) -> None:
+        self.engine = engine
+        self._log = logging.getLogger(f"{__class__}")
 
-    def get_credentials(self):
-        username = self._conf_database.get("USERNAME", None)
-        password = self._conf_database.get("PASSWORD", None)
+    def rename_table_sqlserver(self, old_table_name, new_table_name, schema=None):
+        self._query = text(
+            f"EXEC sp_rename '{schema}.{old_table_name}', '{new_table_name}';"
+        )
+        self.rename_exec()
 
-        if self._conf_database.get("CRYPTON", None):
-            token = Crypton.read_token_file(CRYPTON_TOKEN_PATH)
-            crypton = Crypton(token)
+    def rename_table(self, old_table_name, new_table_name, schema=None):
+        self._query = text(
+            f"ALTER TABLE {schema}.{old_table_name} RENAME TO {new_table_name};"
+        )
+        self.rename_exec()
 
-            username = crypton.decrypt_content(username)
-            password = crypton.decrypt_content(password)
+    def rename_exec(self):
+        with self.engine.connect() as connection:
+            with connection.begin():
+                try:
+                    connection.execute(self._query)
+                except Exception as e:
+                    self._log.exception(e)
+                    raise e
+                else:
+                    self._log.info("Tabela renomeada.")
+                    return True
 
-        return (username, password)
 
-    def get_conf(self):
-        username, password = self.get_credentials()
-        self._connection_data.drivername = self._conf_database.get("DRIVERNAME", None)
-        self._connection_data.host = self._conf_database.get("HOST", None)
-        self._connection_data.database = self._conf_database.get("DATABASE", None)
-        self._connection_data.username = username
-        self._connection_data.password = password
-        self._connection_data.query = self._conf_database.get("QUERY", None)
-        self._connection_data.url = self._conf_database.get("URL", None)
+class DropTableFromRawSql:
+    def __init__(self, engine) -> None:
+        self.engine = engine
+        self._log = logging.getLogger(f"{__class__}")
 
-        return self._connection_data
+    def drop(self, table_name, schema=None):
+        query = text(f"DROP TABLE [{schema}].[{table_name}]")
+        try:
+            self.engine.execute(query)
+        except Exception as e:
+            self._log.exception(e)
+            raise e
+        else:
+            self._log.info("Tabela renomeada.")
+            return True
+
+
+class DropTableSqlAlchemy:
+    def __init__(self, engine) -> None:
+        self._engine = engine
+        self._log = logging.getLogger(f"{__class__}")
+
+    def drop(self, model):
+        try:
+            model.__table__.drop(self._engine)
+        except Exception as e:
+            self._log.exception(e)
+            raise e
+        else:
+            self._log.info("Tabela apagada.")
+            return True
+
+
+class HasTable:
+    def __init__(self, engine) -> None:
+        self._log = logging.getLogger(f"{__class__}")
+        self._engine = engine
+        self._inspect = inspect(self._engine)
+
+    def has_table(self, table_name, schema=None):
+        return self._inspect.has_table(table_name, schema)
+
+    def has_table_from_model(self, model):
+        return self._inspect.has_table(
+            model.__tablename__, model.__table_args__["schema"]
+        )

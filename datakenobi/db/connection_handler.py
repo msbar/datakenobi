@@ -1,4 +1,4 @@
-from datakenobi.db.utils import (
+from datakenobi.db.base import (
     ConnectionBuilder,
     ReadConnectionDataConf,
     SqlAlchemyConnector,

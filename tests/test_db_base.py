@@ -1,7 +1,7 @@
 from sqlalchemy.engine.base import Connection, Engine
 from sqlalchemy.orm import sessionmaker
 
-from datakenobi.db.utils import (
+from datakenobi.db.base import (
     ConnectionBuilder,
     ConnectionData,
     Connector,
